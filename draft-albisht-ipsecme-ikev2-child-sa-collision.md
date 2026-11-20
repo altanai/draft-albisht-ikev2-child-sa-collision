@@ -143,14 +143,32 @@ created its parent IKE SA.  The rank is the ordered tuple:
 * the initiator nonce (Ni);
 * the responder nonce (Nr);
 * the initiator IKE SPI (SPIi); and
-* the responder IKE SPI (SPIr).
+* the responder IKE SPI (SPIr); and
+* a transcript digest (TD).
 
 Tuple fields are compared in the order listed.  Nonces are compared as
 octet strings in lexicographic order.  If one nonce is a prefix of the other,
 the shorter nonce sorts first.  SPI fields are compared as unsigned
-big-endian integers.  The candidate with the higher tuple is selected; the
-candidate with the lower tuple is the loser.  The SPI fields provide a
-deterministic tie-break if the nonce fields compare equal.
+big-endian integers.  The transcript digest is compared as an octet string
+in lexicographic order.  The candidate with the higher tuple is selected;
+the candidate with the lower tuple is the loser.
+
+TD is computed as `SHA-256(Request || Response)`, where `Request` and
+`Response` are the successful IKE_SA_INIT request and response that created
+the candidate IKE SA, in that order.  Each input is the complete encoded IKE
+message, including its IKE header and payloads but excluding the IP and UDP
+headers.  The request is the request corresponding to the successful
+response (including any COOKIE payload used in that request).  This
+definition gives both peers the same byte strings to hash.
+The fixed-length digest provides a deterministic final tie-break when Ni,
+Nr, SPIi, and SPIr are equal but other IKE_SA_INIT message contents differ.
+
+If the SPI pair is already present in the candidate set, it identifies the
+same IKE SA candidate and MUST NOT be treated as a separate candidate.  If
+two candidate records nevertheless have identical ranking tuples, they are
+equivalent for ranking and MUST be treated as one candidate; implementations
+MUST NOT choose between them using local timestamps, local IKE unique IDs,
+or arrival order.
 
 The ranking values are shared by both peers and are bound to the authenticated
 IKE exchange.  Implementations MUST NOT use local timestamps, local IKE
