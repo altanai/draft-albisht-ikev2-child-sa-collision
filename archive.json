@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2026-11-19T00:02:13.753948+00:00",
+  "timestamp": "2026-11-22T00:02:01.355836+00:00",
   "repo": "altanai/draft-albisht-ikev2-child-sa-collision",
   "labels": [
     {
@@ -54,6 +54,55 @@
       "color": "ffffff"
     }
   ],
-  "issues": [],
+  "issues": [
+    {
+      "number": 1,
+      "id": "I_kwDOVwq_kc8AAAABhFm6LA",
+      "title": "Review deterministic candidate-ranking tie-break changes",
+      "url": "https://github.com/altanai/draft-albisht-ikev2-child-sa-collision/issues/1",
+      "state": "OPEN",
+      "author": "altanai",
+      "authorAssociation": "OWNER",
+      "assignees": [],
+      "labels": [],
+      "body": "Track review of the deterministic ranking additions in the draft.\n\nScope:\n- Review adding the transcript digest after Ni, Nr, SPIi, and SPIr in the candidate ranking tuple.\n- Validate the digest input definition and ensure both peers derive identical bytes for the same successful IKE_SA_INIT exchange.\n- Review duplicate-candidate handling and the rule against local timestamps, unique IDs, or arrival order as tie-breaks.\n- Identify needed clarifications, security considerations, and examples for equal-field cases.\n\nDone when the ranking procedure and edge cases have been reviewed and any resulting draft edits are recorded.",
+      "createdAt": "2026-11-20T16:27:57Z",
+      "updatedAt": "2026-11-20T16:28:31Z",
+      "closedAt": null,
+      "comments": []
+    },
+    {
+      "number": 2,
+      "id": "I_kwDOVwq_kc8AAAABhFnejQ",
+      "title": "Compare Libreswan and strongSwan simultaneous IKEv2 collision behavior",
+      "url": "https://github.com/altanai/draft-albisht-ikev2-child-sa-collision/issues/2",
+      "state": "OPEN",
+      "author": "altanai",
+      "authorAssociation": "OWNER",
+      "assignees": [],
+      "labels": [],
+      "body": "Compare Libreswan and strongSwan behavior for simultaneous IKE SA initiation and overlapping CREATE_CHILD_SA exchanges.\n\nInvestigate:\n- Which IKE SAs and Child SAs each implementation retains after simultaneous initiation.\n- How each implementation handles inbound and outbound traffic when policy state is associated with different SAs.\n- What happens during loser cleanup, including DELETE ordering, SPD policy migration, and recovery if deletion fails.\n- Whether observed behavior differs by implementation version or configuration.\n\nRecord versions, configurations, packet or event traces, resulting SA and policy state, and traffic continuity. Summarize the differences and feed relevant findings back into the draft.",
+      "createdAt": "2026-11-20T16:28:32Z",
+      "updatedAt": "2026-11-20T16:28:32Z",
+      "closedAt": null,
+      "comments": []
+    },
+    {
+      "number": 3,
+      "id": "I_kwDOVwq_kc8AAAABhFnfhQ",
+      "title": "Document DELETE and IKE_AUTH race call flows",
+      "url": "https://github.com/altanai/draft-albisht-ikev2-child-sa-collision/issues/3",
+      "state": "OPEN",
+      "author": "altanai",
+      "authorAssociation": "OWNER",
+      "assignees": [],
+      "labels": [],
+      "body": "Create dedicated message-sequence diagrams for races between an incoming DELETE and completion of IKE_AUTH on an IPsec peer.\n\nCover interleavings where:\n- DELETE arrives before, during, or just after the peer processes the final IKE_AUTH message.\n- Each peer completes authentication at a different time, including one peer that has one authenticated candidate while the other has two.\n- A DELETE crosses with the final IKE_AUTH message, or both peers initiate cleanup.\n- A DELETE is duplicated, delayed, or received after the candidate has become the selected winner.\n\nFor each flow, show message ordering, per-peer state transitions, candidate status, DELETE handling, traffic publication, and SPD ownership. State the expected convergence behavior and whether traffic can experience a one-way leak or a traffic hole.",
+      "createdAt": "2026-11-20T16:28:33Z",
+      "updatedAt": "2026-11-20T16:28:33Z",
+      "closedAt": null,
+      "comments": []
+    }
+  ],
   "pulls": []
 }
