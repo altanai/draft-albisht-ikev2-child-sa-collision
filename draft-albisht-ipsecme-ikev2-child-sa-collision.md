@@ -29,9 +29,7 @@ author:
     organization: Cisco
 
 normative:
-  RFC2119:
   RFC7296:
-  RFC8174:
 
 informative:
 
@@ -59,7 +57,7 @@ a Child SA for what the deployment intends to be one logical tunnel.  Without
 a shared collision rule, each peer can retain a different IKE SA or Child SA,
 or both can publish duplicate tunnel state.
 
-RFC 7296 specifies nonce-based handling for simultaneous Child SA rekeying
+{{RFC7296}} specifies nonce-based handling for simultaneous Child SA rekeying
 and discusses simultaneous IKE SA rekeying.  It does not define a winner for
 two independently initiated initial IKE SAs that each establish a Child SA.
 This document proposes an opt-in collision-resolution procedure for that
@@ -199,7 +197,7 @@ an implementation can claim interoperable collision resolution.
 
 The state machine is maintained independently for each collision group.
 
-```text
+~~~
 [IDLE] -- local start or admit peer IKE exchange --> [NEGOTIATING]
 
 [NEGOTIATING] -- second authenticated candidate for same group --> [ARBITRATING]
@@ -212,7 +210,7 @@ The state machine is maintained independently for each collision group.
 
 [ESTABLISHED] -- winner lost --> [IDLE] (recover)
 [Any state] -- no eligible candidate remains --> [IDLE]
-```
+~~~
 
 `NEGOTIATING` covers both a locally initiated IKE exchange and an admitted
 incoming exchange while a Child SA is being created.  If a second
@@ -247,6 +245,121 @@ set, and remove the loser.  This procedure guarantees deterministic
 convergence once both peers know the same authenticated candidate set; it
 does not guarantee that no transient duplicate IKE SA exists during
 negotiation or message delay.
+
+# Example Call Flows
+
+Peers A and B are configured for the same collision group. `X` denotes
+the IKE SA initiated by A and `Y` the IKE SA initiated by B. `C_X` and
+`C_Y` are the corresponding Child SA pairs. `INIT` abbreviates
+`IKE_SA_INIT`, and `AUTH` abbreviates `IKE_AUTH`. The examples omit
+payloads unrelated to collision resolution. Candidate-set agreement is
+shown as a condition because its wire encoding and acknowledgement rules
+are still open.
+
+## Simultaneous IKE_SA_INIT
+
+~~~
+Peer A                                                 Peer B
+  |--- INIT request X (SPIi_X, 0, Ni_X) ---------------->|
+  |<-- INIT request Y (SPIi_Y, 0, Ni_Y) -----------------|
+  |<-- INIT response X (SPIi_X, SPIr_X, Nr_X) -----------|
+  |--- INIT response Y (SPIi_Y, SPIr_Y, Nr_Y) ---------->|
+  |--- AUTH request X ---------------------------------->|
+  |<-- AUTH request Y -----------------------------------|
+  |<-- AUTH response X (C_X) ----------------------------|
+  |--- AUTH response Y (C_Y) --------------------------->|
+  |                                                      |
+  |    AUTH completes on X and Y at both peers.          |
+  |    Both peers confirm the same collision group.      |
+  |    Once both know {X, Y}, both rank Y above X.       |
+  |    Both select C_Y. Cleanup targets C_X.             |
+~~~
+
+Each peer initiates one exchange and responds to the other. The two INIT
+requests cross while both exchanges are in `NEGOTIATING`. At this point
+neither exchange is eligible for arbitration. Even if both peers can
+compute the ranks from INIT, they wait for authentication, group
+confirmation, and successful Child SA negotiation. The example assumes
+`rank(Y) > rank(X)`, so both peers make the same selection when their
+eligible candidate sets agree and then enter `CLEANUP`.
+
+## Asymmetric IKE_AUTH Completion
+
+Here `X` becomes eligible at both peers first. A completes its responder
+processing for `Y`, but the final AUTH response on `Y` is lost.
+
+~~~
+Peer A                                                 Peer B
+  |    AUTH on X completes at both peers.                |
+  |<-- AUTH request Y -----------------------------------|
+  |--- AUTH response Y (C_Y) -----X    (lost)            |
+  |    Eligible at A: {X, Y}       Eligible at B: {X}    |
+  |                                                      |
+  |<-- Retransmit AUTH request Y ------------------------|
+  |--- Cached AUTH response Y (C_Y) -------------------->|
+  |    Eligible at A: {X, Y}       Eligible at B: {X, Y} |
+  |                                                      |
+  |    Once both know {X, Y}, both select C_Y.           |
+  |    Cleanup targets C_X.                              |
+~~~
+
+During the gap, A enters `ARBITRATING` and ranks `Y` above `X` locally
+while B is still negotiating `Y`. Deleting `C_X` based on A's local
+rank would remove B's only eligible Child SA. An SPI pair
+advertised by the peer does not make `Y` locally eligible at B. In this
+example, A defers cleanup until both peers know `Y` is eligible. The
+retransmitted request and cached response use the same IKE SA and Message
+ID and add no candidates. If `Y` never becomes eligible at B, this path
+never reaches the shared selection of `C_Y` that triggers deletion of
+`C_X`.
+
+## Incoming and Crossed Child SA Deletes
+
+Both examples start after the peers agree that `C_Y` is selected and
+`C_X` is the loser. `x_A` is the inbound SPI of `C_X` at A, and `x_B`
+is its inbound SPI at B. Each Delete names the sender's inbound SPI.
+`SK {}` denotes an empty encrypted INFORMATIONAL response. All messages
+shown here use the authenticated IKE SA `X`. See RFC 7296, Section 1.4.1,
+for Delete processing.
+
+### Incoming Delete Before Local Cleanup
+
+~~~
+Peer A                                                 Peer B
+  |--- INFORMATIONAL request: SK { Delete(x_A) } ------->|
+  |<-- INFORMATIONAL response: SK { Delete(x_B) } -------|
+  |                                                      |
+  |    C_X removed at both peers. C_Y remains selected.  |
+~~~
+
+B closes its outbound half of `C_X` identified by `x_A` and returns
+the paired inbound SPI `x_B`. A processes the response and completes
+deletion of `C_X`. When B's collision cleanup runs, the already-absent
+`C_X` counts as removed.
+
+### Crossed Deletes for the Same Child SA Pair
+
+~~~
+Peer A                                                 Peer B
+  |--- INFORMATIONAL request: SK { Delete(x_A) } ------->|
+  |<-- INFORMATIONAL request: SK { Delete(x_B) } --------|
+  |<-- INFORMATIONAL response to A's request: SK {} -----|
+  |--- INFORMATIONAL response to B's request: SK {} ---->|
+  |                                                      |
+  |    C_X removed at both peers. C_Y remains selected.  |
+~~~
+
+Each peer has already sent a Delete for its inbound half of `C_X`. Each
+closes its outbound half when processing the peer's request and its
+inbound half when processing the response to its own request. Neither
+response carries a Delete payload for `C_X`. Retransmissions are handled
+as part of the original INFORMATIONAL exchange.
+
+An authenticated Delete for the selected Child SA is handled by normal
+IKEv2 processing. Loss of the selected candidate invokes recovery in the
+collision state machine. An IKE SA Delete also closes its remaining Child
+SAs. Collision cleanup therefore targets the losing Child SA when its
+parent IKE SA carries Child SAs outside the losing group.
 
 # Security Considerations {#security}
 
@@ -291,16 +404,3 @@ Type allocation from the IANA IKEv2 Parameters registry.
 The author thanks the IKEv2 and IPsecME communities for their review and
 feedback.  The proposal was motivated in part by implementation experience
 with an IKE initiation state machine.
-
-# References
-{:numbered="true"}
-
-## Normative References
-
-* [RFC7296] Kaufman, C., et al., "Internet Key Exchange Protocol Version 2
-  (IKEv2)", STD 79, RFC 7296, DOI 10.17487/RFC7296, October 2014.
-* [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate Requirement
-  Levels", BCP 14, RFC 2119, DOI 10.17487/RFC2119, March 1997.
-* [RFC8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key
-  Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174, May 2017.
-
